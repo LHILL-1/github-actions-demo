@@ -1,0 +1,110 @@
+# ============================================================
+# WORKFLOW 4: DEPLOY TO ENVIRONMENT
+# ============================================================
+# What this does:
+# After tests pass and the Docker image is built, this workflow
+# deploys your app to a staging environment automatically.
+# Production deploy requires a manual approval step.
+#
+# Why it matters:
+# Manual deployments are error-prone and stressful.
+# Automated, gated deployments mean less human error and
+# a clear audit trail of exactly what was deployed and when.
+#
+# Structure:
+# push to main → auto deploy to STAGING
+# manual trigger → deploy to PRODUCTION (requires approval)
+# ============================================================
+
+name: Deploy
+
+on:
+ workflow_run:
+ workflows: [" Docker Build & Push"] # Only runs AFTER Docker workflow succeeds
+ types: [completed]
+ branches: [main]
+ workflow_dispatch: # Manual trigger for production deploys
+ inputs:
+ environment:
+ description: "Target environment"
+ required: true
+ default: "staging"
+ type: choice
+ options:
+ - staging
+ - production
+
+jobs:
+ # 
+ # JOB 1: Deploy to Staging (automatic)
+ # 
+ deploy-staging:
+ name: Deploy to Staging
+ runs-on: ubuntu-latest
+ if: ${{ github.event.workflow_run.conclusion == 'success' || github.event.inputs.environment == 'staging' }}
+
+ # GitHub Environments give you deployment history and protection rules
+ environment:
+ name: staging
+ url: https://staging.your-app.com # Update with your real URL
+
+ steps:
+ - name: Checkout code
+ uses: actions/checkout@v4
+
+ - name: Deploy to staging
+ run: |
+ echo "============================================"
+ echo " Deploying to STAGING environment"
+ echo " Commit: ${{ github.sha }}"
+ echo " Triggered by: ${{ github.actor }}"
+ echo "============================================"
+
+ # In a real project, this is where you'd run something like:
+ # ssh user@staging-server "docker pull myimage:latest && docker-compose up -d"
+ # or use a cloud provider action:
+ # - AWS: aws-actions/amazon-ecs-deploy-task-definition
+ # - Azure: Azure/webapps-deploy
+ # - Render: JorgeLNJunior/render-deploy
+
+ echo " Staging deploy complete!"
+
+ - name: Notify team (Staging)
+ run: |
+ echo "In a real pipeline you'd send a Slack/Teams message here."
+ echo "e.g. using slackapi/slack-github-action"
+
+ # 
+ # JOB 2: Deploy to Production (manual approval)
+ # 
+ deploy-production:
+ name: Deploy to Production
+ runs-on: ubuntu-latest
+ needs: deploy-staging # Must succeed before production
+ if: ${{ github.event.inputs.environment == 'production' }}
+
+ # Production environment has a required reviewer set in GitHub settings
+ # Nobody can deploy to prod without approval — this is the gate!
+ environment:
+ name: production
+ url: https://your-app.com # Update with your real URL
+
+ steps:
+ - name: Checkout code
+ uses: actions/checkout@v4
+
+ - name: Deploy to production
+ run: |
+ echo "============================================"
+ echo " Deploying to PRODUCTION environment"
+ echo " Commit: ${{ github.sha }}"
+ echo " Approved and deployed by: ${{ github.actor }}"
+ echo "============================================"
+
+ # Same deploy commands as staging, just targeting production
+ echo " Production deploy complete!"
+
+ - name: Notify team (Production)
+ run: |
+ echo "Production deployment notification sent."
+ echo "Audit log: Deployed ${{ github.sha }} to production at $(date -u)"

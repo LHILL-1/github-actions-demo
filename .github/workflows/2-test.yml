@@ -1,0 +1,63 @@
+# ============================================================
+# WORKFLOW 2: AUTOMATED TESTING WITH PYTEST
+# ============================================================
+# What this does:
+# Automatically runs your test suite every time code is pushed.
+# If tests fail, the pipeline stops — broken code never ships.
+#
+# Why it matters:
+# The CrowdStrike 2024 outage took down 8.5 million machines.
+# Automated testing is the first line of defence against
+# shipping bugs that break production.
+#
+# Tool used: pytest (industry standard Python testing)
+# ============================================================
+
+name: Run Tests
+
+on:
+ push:
+ branches: ["**"]
+ pull_request:
+ branches: [main]
+
+jobs:
+ test:
+ name: Run pytest suite
+ runs-on: ubuntu-latest
+
+ steps:
+ # Step 1: Check out the code
+ - name: Checkout code
+ uses: actions/checkout@v4
+
+ # Step 2: Set up the Python version we want
+ - name: Set up Python 3.12
+ uses: actions/setup-python@v5
+ with:
+ python-version: "3.12"
+ cache: "pip" # Cache pip packages to speed up future runs
+
+ # Step 3: Install dependencies
+ - name: Install dependencies
+ run: pip install -r requirements.txt
+
+ # Step 4: Run the tests with coverage reporting
+ # --cov generates a coverage report so you can see untested code
+ - name: Run tests with coverage
+ run: |
+ pytest tests/ \
+ --cov=app \
+ --cov-report=term-missing \
+ --cov-fail-under=80 \
+ -v
+
+ # Step 5: Upload coverage report as an artifact
+ # (viewable in the GitHub Actions UI after the run)
+ - name: Upload coverage report
+ uses: actions/upload-artifact@v4
+ if: always() # Upload even if tests fail — useful for debugging
+ with:
+ name: coverage-report
+ path: .coverage
+ retention-days: 7
